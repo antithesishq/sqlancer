@@ -2,16 +2,16 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.sqlancer</groupId>
+  <groupId>com.antithesis</groupId>
   <artifactId>sqlancer</artifactId>
   <version>2.0.0</version>
-  <name>SQLancer</name>
-  <url>http://www.sqlancer.com/</url>
+  <name>SQLancer: Antithesis Fork</name>
+  <url>https://github.com/antithesishq/sqlancer/</url>
   <description>SQLancer finds logic bugs in Database Management Systems through automatic testing</description>
   <licenses>
     <license>
       <name>MIT License</name>
-      <url>https://github.com/sqlancer/sqlancer/blob/master/LICENSE.md</url>
+      <url>https://github.com/antithesishq/sqlancer/blob/master/LICENSE.md</url>
       <distribution>repo</distribution>
     </license>
   </licenses>
@@ -28,11 +28,22 @@
         <role>developer</role>
       </roles>
     </developer>
+    <developer>
+      <id>isaacchua</id>
+      <name>Isaac Chua</name>
+      <email>isaac.chua@antithesis.com</email>
+      <organization>Antithesis</organization>
+      <organizationUrl>https://www.antithesis.com/</organizationUrl>
+      <url>https://www.isaacchua.com/</url>
+      <roles>
+        <role>developer</role>
+      </roles>
+    </developer>
   </developers>
   <scm>
-    <url>https://github.com/sqlancer/sqlancer/</url>
-    <connection>scm:git:git://github.com/sqlancer/sqlancer.git</connection>
-    <developerConnection>scm:git:ssh://github.com:sqlancer/sqlancer.git</developerConnection>
+    <url>https://github.com/antithesishq/sqlancer/</url>
+    <connection>scm:git:git://github.com/antithesishq/sqlancer.git</connection>
+    <developerConnection>scm:git:ssh://github.com:antithesishq/sqlancer.git</developerConnection>
   </scm>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
