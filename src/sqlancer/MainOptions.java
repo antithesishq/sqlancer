@@ -18,7 +18,7 @@ public class MainOptions {
 
     @Parameter(names = {
             "--num-threads" }, description = "How many threads should run concurrently to test separate databases")
-    private int nrConcurrentThreads = 16; // NOPMD
+    private int nrConcurrentThreads = 4; // NOPMD
 
     @Parameter(names = {
             "--random-seed" }, description = "A seed value != -1 that can be set to make the query and database generation deterministic")
