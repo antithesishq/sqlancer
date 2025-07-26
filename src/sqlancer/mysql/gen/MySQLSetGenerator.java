@@ -99,7 +99,11 @@ public class MySQLSetGenerator {
         SCHEMA_DEFINITION_CACHE("schema_definition_cache", (r) -> r.getLong(256, 524288), Scope.GLOBAL), //
         SHOW_CREATE_TABLE_VERBOSITY("show_create_table_verbosity", (r) -> Randomly.fromOptions("OFF", "ON"),
                 Scope.GLOBAL, Scope.SESSION), //
-        SHOW_OLD_TEMPORALS("show_old_temporals", (r) -> Randomly.fromOptions("OFF", "ON"), Scope.GLOBAL, Scope.SESSION),
+        /*
+         * Disabled because MySQL version 8+ no longer supports this and will raise an AssertionError
+         */
+        // SHOW_OLD_TEMPORALS("show_old_temporals", (r) -> Randomly.fromOptions("OFF", "ON"), Scope.GLOBAL,
+        // Scope.SESSION),
         /*
          * sort_buffer_size is commented out as a workaround for https://bugs.mysql.com/bug.php?id=95969
          */
