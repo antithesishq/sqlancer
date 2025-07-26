@@ -1,0 +1,47 @@
+name: PostgreSQL
+on:
+  push:
+    branches:
+      - antithesis
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/*.yml'
+      - 'pom.xml'
+  pull_request:
+    branches:
+      - antithesis
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/*.yml'
+      - 'pom.xml'
+jobs:
+  postgres:
+    name: DBMS Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up PostgreSQL
+        uses: harmon758/postgresql-action@v1.0.0
+        with:
+          postgresql version: '13'
+          postgresql user: 'sqlancer'
+          postgresql password: 'sqlancer'
+          postgresql db: 'test'
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+      - name: Build SQLancer
+        run: mvn -B package -DskipTests=true
+      - name: Run Tests
+        run: |
+          POSTGRES_AVAILABLE=true mvn -Dtest=TestPostgresPQS test
+          POSTGRES_AVAILABLE=true mvn -Dtest=TestPostgresTLP test
+          POSTGRES_AVAILABLE=true mvn -Dtest=TestPostgresNoREC test
+          POSTGRES_AVAILABLE=true mvn -Dtest=TestPostgresCERT test

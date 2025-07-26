@@ -1,0 +1,45 @@
+name: YugabyteDB
+on:
+  push:
+    branches:
+      - antithesis
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/*.yml'
+      - 'pom.xml'
+  pull_request:
+    branches:
+      - antithesis
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/*.yml'
+      - 'pom.xml'
+jobs:
+  yugabyte:
+    name: DBMS Tests (YugabyteDB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+      - name: Build SQLancer
+        run: mvn -B package -DskipTests=true
+      - name: Set up Yugabyte
+        run: |
+          docker pull yugabytedb/yugabyte:latest
+          docker run -d --name yugabyte -p7000:7000 -p9000:9000 -p5433:5433 -p9042:9042 yugabytedb/yugabyte:latest bin/yugabyted start --daemon=false
+          sleep 5
+      - name: Run Tests
+        run: |
+          YUGABYTE_AVAILABLE=true mvn -Dtest=TestYSQLNoREC test
+          YUGABYTE_AVAILABLE=true mvn -Dtest=TestYSQLTLP test
+          YUGABYTE_AVAILABLE=true mvn -Dtest=TestYSQLPQS test
+          YUGABYTE_AVAILABLE=true mvn -Dtest=TestYCQL test

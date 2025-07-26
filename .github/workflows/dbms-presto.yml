@@ -1,0 +1,45 @@
+name: Presto
+on:
+  push:
+    branches:
+      - antithesis
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/*.yml'
+      - 'pom.xml'
+  pull_request:
+    branches:
+      - antithesis
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/*.yml'
+      - 'pom.xml'
+jobs:
+  presto:
+    name: DBMS Tests (Presto)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+      - name: Set up Presto
+        run: |
+          docker pull prestodb/presto:latest
+          echo "connector.name=memory" >> memory.properties
+          docker run -p 8080:8080 -d -v ./memory.properties:/opt/presto-server/etc/catalog/memory.properties --name presto prestodb/presto:latest
+          sleep 30
+      - name: Build SQLancer
+        run: mvn -B package -DskipTests=true
+      - name: Run Tests
+        run: |
+          PRESTO_AVAILABLE=true mvn -Dtest=TestPrestoNoREC test
+          docker restart presto && sleep 30
+          PRESTO_AVAILABLE=true mvn -Dtest=TestPrestoTLP test

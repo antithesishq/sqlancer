@@ -1,0 +1,58 @@
+name: Apache Doris
+on:
+  push:
+    branches:
+      - antithesis
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/*.yml'
+      - 'pom.xml'
+  pull_request:
+    branches:
+      - antithesis
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/*.yml'
+      - 'pom.xml'
+jobs:
+  doris:
+    name: DBMS Tests (Apache Doris)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+      - name: install mysql client
+        run: |
+          sudo apt update
+          sudo apt install mysql-client --assume-yes
+      - name: Set up Apache Doris
+        run: |
+          sudo sysctl -w vm.max_map_count=2000000
+          wget -q https://apache-doris-releases.oss-accelerate.aliyuncs.com/apache-doris-2.1.4-bin-x64.tar.gz
+          tar zxf apache-doris-2.1.4-bin-x64.tar.gz
+          mv apache-doris-2.1.4-bin-x64 apache-doris
+          sudo swapoff -a
+          cd apache-doris/fe
+          ./bin/start_fe.sh --daemon
+          cd ../be
+          ./bin/start_be.sh --daemon
+          sleep 30
+          IP=$(hostname -I | awk '{print $1}')
+          mysql -u root -h 127.0.0.1 --port 9030 -e "ALTER SYSTEM ADD BACKEND '${IP}:9050';"
+          mysql -u root -h 127.0.0.1 --port 9030 -e "CREATE USER 'sqlancer' IDENTIFIED BY 'sqlancer'; GRANT ALL ON *.* TO sqlancer;"
+      - name: Build SQLancer
+        run: mvn -B package -DskipTests=true
+      - name: Run Tests
+        run: |
+          DORIS_AVAILABLE=true mvn -Dtest=TestDorisNoREC test
+          DORIS_AVAILABLE=true mvn -Dtest=TestDorisPQS test
+          DORIS_AVAILABLE=true mvn -Dtest=TestDorisTLP test

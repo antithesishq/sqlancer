@@ -1,5 +1,3 @@
-[![Build Status](https://github.com/antithesishq/sqlancer/workflows/ci/badge.svg)](https://github.com/antithesishq/sqlancer/actions)
-
 # SQLancer – Antithesis Fork
 
 This fork of [SQLancer](https://github.com/sqlancer/sqlancer) contains modifications not limited to the following to enable it to run effectively on the Antithesis Platform:
@@ -8,6 +6,28 @@ This fork of [SQLancer](https://github.com/sqlancer/sqlancer) contains modificat
 - Outputs structured events through the Antithesis logging endpoint. [to come]
 
 We endeavor to keep the code up-to-date with the original [SQLancer](https://github.com/sqlancer/sqlancer) repository.
+
+[![SQLancer Core](https://github.com/antithesishq/sqlancer/actions/workflows/sqlancer.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/sqlancer.yml)
+[![Apache Doris](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-doris.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-doris.yml)
+[![Citus](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-citus.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-citus.yml)
+[![Clickhouse](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-clickhouse.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-clickhouse.yml)
+[![CnosDB](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-cnosdb.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-cnosdb.yml)
+[![CockroachDB](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-cockroachdb.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-cockroachdb.yml)
+[![Databend](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-databend.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-databend.yml)
+[![DataFusion](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-datafusion.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-datafusion.yml)
+[![DuckDB](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-duckdb.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-duckdb.yml)
+[![H2](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-h2.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-h2.yml)
+[![Hive](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-hive.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-hive.yml)
+[![HSQLDB](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-hsqldb.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-hsqldb.yml)
+[![MariaDB](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-mariadb.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-mariadb.yml)
+[![Materialize](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-materialize.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-materialize.yml)
+[![MySQL 8.x](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-mysql8.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-mysql8.yml)
+[![OceanBase](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-oceanbase.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-oceanbase.yml)
+[![PostgreSQL](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-postgres.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-postgres.yml)
+[![Presto](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-presto.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-presto.yml)
+[![SQLite](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-sqlite.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-sqlite.yml)
+[![TiDB](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-tidb.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-tidb.yml)
+[![YugabyteDB](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-yugabyte.yml/badge.svg)](https://github.com/antithesishq/sqlancer/actions/workflows/dbms-yugabyte.yml)
 
 ---
 
@@ -41,7 +61,7 @@ java -jar sqlancer-*.jar --num-threads 4 sqlite3 --oracle NoREC
 
 **Parameters.** If you launch SQLancer without parameters, available options and commands are displayed. Note that general options that are supported by all DBMS-testing implementations (e.g., `--num-threads`) need to precede the name of the DBMS to be tested (e.g., `sqlite3`). Options that are supported only for specific DBMS (e.g., `--test-rtree` for SQLite3), or options for which each testing implementation provides different values (e.g. `--oracle NoREC`) need to go after the DBMS name.
 
-**DBMSs.** To run SQLancer on SQLite, it was not necessary to install and set up a DBMS. The reason for this is that embedded DBMSs run in the same process as the application and thus require no separate installation or setup. Embedded DBMSs supported by SQLancer include DuckDB, H2, and SQLite. Their binaries are included as [JAR dependencies](https://github.com/antithesishq/sqlancer/blob/main/pom.xml). Note that any crashes in these systems will also cause a crash in the JVM on which SQLancer runs.
+**DBMSs.** To run SQLancer on SQLite, it was not necessary to install and set up a DBMS. The reason for this is that embedded DBMSs run in the same process as the application and thus require no separate installation or setup. Embedded DBMSs supported by SQLancer include DuckDB, H2, and SQLite. Their binaries are included as [JAR dependencies](https://github.com/antithesishq/sqlancer/blob/antithesis/pom.xml). Note that any crashes in these systems will also cause a crash in the JVM on which SQLancer runs.
 
 
 # Using SQLancer
@@ -77,9 +97,9 @@ Usage: SQLancer [options] [command] [command options]
 * [Maven Central](https://search.maven.org/artifact/com.antithesis/sqlancer) [to come]
 * [DockerHub](https://hub.docker.com/r/antithesishq/sqlancer) [to come]
 
-**Understanding SQL generation.** To analyze bug-inducing statements, it is helpful to understand the characteristics of SQLancer. First, SQLancer is expected to always generate SQL statements that are syntactically valid for the DBMS under test. Thus, you should never observe any syntax errors. Second, SQLancer might generate statements that are semantically invalid. For example, SQLancer might attempt to insert duplicate values into a column with a `UNIQUE` constraint, as completely avoiding such semantic errors is challenging. Third, any bug reported by SQLancer is expected to be a real bug, except those reported by CERT (as performance issues are not as clearly defined as other kinds of bugs). If you observe any bugs indicated by SQLancer that you do not consider bugs, something is likely wrong with your setup. Finally, related to the aforementioned point, SQLancer is specific to a version of the DBMS, and you can find the version against which we are tested in our [GitHub Actions workflow](https://github.com/antithesishq/sqlancer/blob/documentation/.github/workflows/main.yml). If you are testing against another version, you might observe various false alarms (e.g., caused by syntax errors). While we would always like for SQLancer to be up-to-date with the latest development version of each DBMS, we lack the resources to achieve this.
+**Understanding SQL generation.** To analyze bug-inducing statements, it is helpful to understand the characteristics of SQLancer. First, SQLancer is expected to always generate SQL statements that are syntactically valid for the DBMS under test. Thus, you should never observe any syntax errors. Second, SQLancer might generate statements that are semantically invalid. For example, SQLancer might attempt to insert duplicate values into a column with a `UNIQUE` constraint, as completely avoiding such semantic errors is challenging. Third, any bug reported by SQLancer is expected to be a real bug, except those reported by CERT (as performance issues are not as clearly defined as other kinds of bugs). If you observe any bugs indicated by SQLancer that you do not consider bugs, something is likely wrong with your setup. Finally, related to the aforementioned point, SQLancer is specific to a version of the DBMS, and you can find the version against which we are tested in our [GitHub Actions workflows](https://github.com/antithesishq/sqlancer/tree/antithesis/.github/workflows). If you are testing against another version, you might observe various false alarms (e.g., caused by syntax errors). While we would always like for SQLancer to be up-to-date with the latest development version of each DBMS, we lack the resources to achieve this.
 
-**Supported DBMSs.** SQLancer requires DBMS-specific code for each DBMS that it supports. As of January 2025, it provides support for Citus, ClickHouse, CnosDB, CockroachDB, Databend, (Apache) DataFusion, (Apache) Doris, DuckDB, H2, HSQLDB, MariaDB, Materialize, MySQL, OceanBase, PostgreSQL, Presto, QuestDB, SQLite3, TiDB, and YugabyteDB. The extent to which the individual DBMSs are supported [differs](https://github.com/antithesishq/sqlancer/blob/documentation-approaches/CONTRIBUTING.md).
+**Supported DBMSs.** SQLancer requires DBMS-specific code for each DBMS that it supports. As of January 2025, it provides support for Citus, ClickHouse, CnosDB, CockroachDB, Databend, (Apache) DataFusion, (Apache) Doris, DuckDB, H2, HSQLDB, MariaDB, Materialize, MySQL, OceanBase, PostgreSQL, Presto, QuestDB, SQLite3, TiDB, and YugabyteDB. The extent to which the individual DBMSs are supported [differs](https://github.com/antithesishq/sqlancer/blob/antithesis/CONTRIBUTING.md).
 
 # Approaches and Papers
 
@@ -99,7 +119,7 @@ Please find the `.bib` entries [here](docs/PAPERS.md).                          
 
 # FAQ
 
-**I am running SQLancer on the latest version of a supported DBMS. Is it expected that SQLancer prints many AssertionErrors?** In many cases, SQLancer does not support the latest version of a DBMS. You can check the [`.github/workflows/main.yml`](https://github.com/antithesishq/sqlancer/blob/master/.github/workflows/main.yml) file to determine which version we use in our CI tests, which corresponds to the currently supported version of that DBMS. SQLancer should print only an `AssertionError` and produce a corresponding log file, if it has identified a bug. To upgrade SQLancer to support a new DBMS version, either two options are advisable: (1) the generators can be updated to no longer generate certain patterns that might cause errors (e.g., which might be the case if a keyword or option is no longer supported) or (2) the newly-appearing errors can be added as [expected errors](https://github.com/antithesishq/sqlancer/blob/354d591cfcd37fa1de85ec77ec933d5d975e947a/src/sqlancer/common/query/ExpectedErrors.java) so that SQLancer ignores them when they appear (e.g., this is useful if some error-inducing patterns cannot easily be avoided).
+**I am running SQLancer on the latest version of a supported DBMS. Is it expected that SQLancer prints many AssertionErrors?** In many cases, SQLancer does not support the latest version of a DBMS. You can check the [`.github/workflows/`](https://github.com/antithesishq/sqlancer/tree/antithesis/.github/workflows) directory to determine which version we use in our CI tests, which corresponds to the currently supported version of that DBMS. SQLancer should print only an `AssertionError` and produce a corresponding log file, if it has identified a bug. To upgrade SQLancer to support a new DBMS version, either two options are advisable: (1) the generators can be updated to no longer generate certain patterns that might cause errors (e.g., which might be the case if a keyword or option is no longer supported) or (2) the newly-appearing errors can be added as [expected errors](https://github.com/antithesishq/sqlancer/blob/antithesis/src/sqlancer/common/query/ExpectedErrors.java) so that SQLancer ignores them when they appear (e.g., this is useful if some error-inducing patterns cannot easily be avoided).
 
 Another reason for many failures on a supported version could be that error messages are printed in a non-English locale (which would then be visible in the stack trace). In such a case, try setting the DBMS' locale to English (e.g., see the [PostgreSQL homepage](https://www.postgresql.org/docs/current/locale.html)).
 
