@@ -420,7 +420,9 @@ public final class Main {
         }
 
         public void testConnection() throws Exception {
-            G state = getInitializedGlobalState(options.getRandomSeed());
+            long seed = options.getRandomSeed();
+            System.out.printf("Using seed: %d%n", seed);
+            G state = getInitializedGlobalState(seed);
             try (SQLancerDBConnection con = provider.createDatabase(state)) {
                 return;
             }
@@ -627,14 +629,17 @@ public final class Main {
         }
         final AtomicBoolean someOneFails = new AtomicBoolean(false);
 
+        final long inputSeed;
+        if (options.getRandomSeed() == -1) {
+            inputSeed = Random.getRandom();
+        } else {
+            inputSeed = options.getRandomSeed();
+        }
+
         for (int i = 0; i < options.getTotalNumberTries(); i++) {
+            final long seed = inputSeed + i;
+            System.out.printf("Using seed: %d%n", seed);
             final String databaseName = options.getDatabasePrefix() + i;
-            final long seed;
-            if (options.getRandomSeed() == -1) {
-                seed = Random.getRandom() + i;
-            } else {
-                seed = options.getRandomSeed() + i;
-            }
             execService.execute(new Runnable() {
 
                 @Override
