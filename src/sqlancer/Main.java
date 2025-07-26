@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.antithesis.sdk.Random;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.JCommander.Builder;
 
@@ -630,7 +631,7 @@ public final class Main {
             final String databaseName = options.getDatabasePrefix() + i;
             final long seed;
             if (options.getRandomSeed() == -1) {
-                seed = System.currentTimeMillis() + i;
+                seed = Random.getRandom() + i;
             } else {
                 seed = options.getRandomSeed() + i;
             }
