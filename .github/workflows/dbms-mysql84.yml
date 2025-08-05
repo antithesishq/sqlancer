@@ -28,7 +28,7 @@ jobs:
           MYSQL_ROOT_HOST: '%'
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin -proot ping" --health-interval=10s --health-timeout=5s --health-retries=10
+        options: --health-cmd="mysqladmin -proot ping" --health-interval=10s --health-timeout=5s --health-retries=10 --tmpfs="/var/lib/mysql:rw,noexec,nosuid,size=1024M"
     steps:
       - uses: actions/checkout@v3
         with:
