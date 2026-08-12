@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -26,7 +27,6 @@ import com.beust.jcommander.JCommander.Builder;
 
 import sqlancer.citus.CitusProvider;
 import sqlancer.clickhouse.ClickHouseProvider;
-import sqlancer.cnosdb.CnosDBProvider;
 import sqlancer.cockroachdb.CockroachDBProvider;
 import sqlancer.common.log.Loggable;
 import sqlancer.common.query.Query;
@@ -44,6 +44,7 @@ import sqlancer.oceanbase.OceanBaseProvider;
 import sqlancer.postgres.PostgresProvider;
 import sqlancer.presto.PrestoProvider;
 import sqlancer.questdb.QuestDBProvider;
+import sqlancer.spark.SparkProvider;
 import sqlancer.sqlite3.SQLite3Provider;
 import sqlancer.tidb.TiDBProvider;
 import sqlancer.yugabyte.ycql.YCQLProvider;
@@ -79,6 +80,10 @@ public final class Main {
         public FileWriter currentFileWriter;
         private FileWriter queryPlanFileWriter;
         private FileWriter reduceFileWriter;
+        private Path reproduceFilePath;
+        private List<Query<?>> reduceSetupStatements;
+        private String reduceBugInformation;
+        private int nrReductionAttempts;
 
         private static final List<String> INITIALIZED_PROVIDER_NAMES = new ArrayList<>();
         private final boolean logEachSelect;
@@ -128,7 +133,13 @@ public final class Main {
                     reduceFileDir.mkdir();
                 }
                 this.reduceFile = new File(reduceFileDir, databaseName + "-reduce.log");
-
+            }
+            if (options.serializeReproduceState()) {
+                File reproduceFileDir = new File(dir, "reproduce");
+                if (!reproduceFileDir.exists()) {
+                    reproduceFileDir.mkdir();
+                }
+                reproduceFilePath = new File(reproduceFileDir, databaseName + ".ser").toPath();
             }
             this.databaseProvider = provider;
         }
@@ -255,33 +266,32 @@ public final class Main {
             }
         }
 
-        public void logReducer(String reducerLog) {
-            FileWriter reduceFileWriter = getReduceFileWriter();
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("[reducer log] ");
-            sb.append(reducerLog);
-            try {
-                reduceFileWriter.write(sb.toString());
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            } finally {
-                try {
-                    reduceFileWriter.flush();
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-            }
+        public void setReductionContext(List<Query<?>> setupStatements, String bugInformation) {
+            this.reduceSetupStatements = setupStatements;
+            this.reduceBugInformation = bugInformation;
         }
 
         public void logReduced(StateToReproduce state) {
+            nrReductionAttempts++;
+            logReduced(state, "Reduction attempt " + nrReductionAttempts
+                    + ": the bug was still triggered with the following statements");
+        }
+
+        public void logReduced(StateToReproduce state, String description) {
             FileWriter reduceFileWriter = getReduceFileWriter();
 
             StringBuilder sb = new StringBuilder();
-            for (Query<?> s : state.getStatements()) {
-                sb.append(databaseProvider.getLoggableFactory().createLoggable(s.getLogString()).getLogString());
+            sb.append("-- ").append(description).append(System.lineSeparator());
+            if (reduceSetupStatements != null && !reduceSetupStatements.isEmpty()) {
+                appendStatements(sb, reduceSetupStatements);
+                // e.g. DROP DATABASE IF EXISTS db; CREATE DATABASE db; USE db;
+                // these statements are executed at the start of every test case and are never reduced
             }
+            appendStatements(sb, state.getStatements());
+            if (reduceBugInformation != null) {
+                sb.append(reduceBugInformation);
+            }
+            sb.append(System.lineSeparator());
             try {
                 reduceFileWriter.write(sb.toString());
 
@@ -296,6 +306,12 @@ public final class Main {
                 }
             }
 
+        }
+
+        private void appendStatements(StringBuilder sb, List<Query<?>> statements) {
+            for (Query<?> s : statements) {
+                sb.append(databaseProvider.getLoggableFactory().createLoggable(s.getLogString()).getLogString());
+            }
         }
 
         public void logException(Throwable reduce, StateToReproduce state) {
@@ -341,6 +357,10 @@ public final class Main {
             result = result.replaceAll("v[0-9]+", "v0"); // Avoid duplicate views
             result = result.replaceAll("i[0-9]+", "i0"); // Avoid duplicate indexes
             return result + "\n";
+        }
+
+        public Path getReproduceFilePath() {
+            return reproduceFilePath;
         }
     }
 
@@ -451,6 +471,9 @@ public final class Main {
                 if (options.logEachSelect()) {
                     logger.writeCurrent(state.getState());
                 }
+                // statements logged so far stem from the database setup (e.g., DROP DATABASE IF
+                // EXISTS, CREATE DATABASE, USE), performed by createDatabase
+                int nrSetupStatements = stateToRepro.getStatements().size();
                 Reproducer<G> reproducer = null;
                 if (options.enableQPG()) {
                     provider.generateAndTestDatabaseWithQueryPlanGuidance(state);
@@ -464,6 +487,9 @@ public final class Main {
                     throw new AssertionError(e);
                 }
 
+                if (options.serializeReproduceState() && reproducer != null) {
+                    stateToRepro.serialize(logger.getReproduceFilePath());
+                }
                 if (options.reduceAST() && !options.useReducer()) {
                     throw new AssertionError("To reduce AST, use-reducer option must be enabled first");
                 }
@@ -472,6 +498,17 @@ public final class Main {
                         logger.getReduceFileWriter().write("current oracle does not support experimental reducer.");
                         throw new IgnoreMeException();
                     }
+
+                    // reduce only the generation statements: the database setup (logged by
+                    // createDatabase) is re-executed by the reducers for every candidate, and the
+                    // oracle queries (logged by the oracle's local state) by the reproducer
+                    List<Query<?>> allStatements = new ArrayList<>(stateToRepro.getStatements());
+                    List<Query<?>> setupStatements = new ArrayList<>(allStatements.subList(0, nrSetupStatements));
+                    List<Query<?>> oracleQueryStatements = stateToRepro.getLocalState() == null ? new ArrayList<>()
+                            : new ArrayList<>(stateToRepro.getLocalState().getStatements());
+                    stateToRepro.setStatements(new ArrayList<>(allStatements.subList(nrSetupStatements,
+                            allStatements.size() - oracleQueryStatements.size())));
+
                     G newGlobalState = createGlobalState();
                     newGlobalState.setState(stateToRepro);
                     newGlobalState.setRandomly(r);
@@ -481,6 +518,7 @@ public final class Main {
                     QueryManager<C> newManager = new QueryManager<>(newGlobalState);
                     newGlobalState.setStateLogger(new StateLogger(databaseName, provider, options));
                     newGlobalState.setManager(newManager);
+                    newGlobalState.getLogger().setReductionContext(setupStatements, reproducer.getBugInformation());
 
                     Reducer<G> reducer = new StatementReducer<>(provider);
                     reducer.reduce(state, reproducer, newGlobalState);
@@ -490,11 +528,28 @@ public final class Main {
                         astBasedReducer.reduce(state, reproducer, newGlobalState);
                     }
 
-                    try {
-                        logger.getReduceFileWriter().close();
-                        logger.reduceFileWriter = null;
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
+                    // reassemble the statements so that the main log looks like one produced
+                    // without the reducer, with the generation statements replaced by the reduced
+                    // ones and the oracle queries at the end
+                    List<Query<?>> finalStatements = new ArrayList<>(setupStatements);
+                    finalStatements.addAll(stateToRepro.getStatements());
+                    finalStatements.addAll(oracleQueryStatements);
+                    stateToRepro.setStatements(finalStatements);
+                    String bugInformation = reproducer.getBugInformation();
+                    if (bugInformation != null) {
+                        for (String line : bugInformation.split(System.lineSeparator())) {
+                            stateToRepro.logStatement(line);
+                        }
+                    }
+
+                    StateLogger reduceLogger = newGlobalState.getLogger();
+                    if (reduceLogger.reduceFileWriter != null) {
+                        try {
+                            reduceLogger.reduceFileWriter.close();
+                            reduceLogger.reduceFileWriter = null;
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
                     }
 
                     throw new AssertionError("Found a potential bug, please check reducer log for detail.");
@@ -681,6 +736,10 @@ public final class Main {
                         executor.getStateToReproduce().exception = reduce.getMessage();
                         executor.getLogger().logFileWriter = null;
                         executor.getLogger().logException(reduce, executor.getStateToReproduce());
+                        if (options.serializeReproduceState()) {
+                            executor.getStateToReproduce().logStatement(reduce.getMessage()); // add the error statement
+                            executor.getStateToReproduce().serialize(executor.getLogger().getReproduceFilePath());
+                        }
                         return false;
                     } finally {
                         try {
@@ -736,13 +795,13 @@ public final class Main {
                     "No DBMS implementations (i.e., instantiations of the DatabaseProvider class) were found. You likely ran into an issue described in https://github.com/sqlancer/sqlancer/issues/799. As a workaround, I now statically load all supported providers as of June 7, 2023.");
             providers.add(new CitusProvider());
             providers.add(new ClickHouseProvider());
-            providers.add(new CnosDBProvider());
             providers.add(new CockroachDBProvider());
             providers.add(new DatabendProvider());
             providers.add(new DorisProvider());
             providers.add(new DuckDBProvider());
             providers.add(new H2Provider());
             providers.add(new HiveProvider());
+            providers.add(new SparkProvider());
             providers.add(new HSQLDBProvider());
             providers.add(new MariaDBProvider());
             providers.add(new MaterializeProvider());

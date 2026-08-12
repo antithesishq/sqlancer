@@ -13,6 +13,7 @@ import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.mysql.MySQLBugs;
 import sqlancer.mysql.MySQLGlobalState;
+import sqlancer.mysql.MySQLOracleFactory;
 import sqlancer.mysql.MySQLSchema;
 import sqlancer.mysql.MySQLSchema.MySQLDataType;
 import sqlancer.mysql.MySQLSchema.MySQLTable.MySQLEngine;
@@ -197,7 +198,10 @@ public class MySQLTableGenerator {
                 // "NDB": java.sql.SQLSyntaxErrorException: Unknown storage engine 'NDB'
                 // "EXAMPLE": java.sql.SQLSyntaxErrorException: Unknown storage engine 'EXAMPLE'
                 // "MERGE": java.sql.SQLException: Table 't0' is read only
-                String fromOptions = Randomly.fromOptions("InnoDB", "MyISAM", "MEMORY", "HEAP", "CSV", "ARCHIVE");
+                // The EET DML oracle rolls back each statement to compare database states, which requires a
+                // transactional engine, so only InnoDB is used while it is active.
+                String fromOptions = globalState.usesEETDML() ? "InnoDB"
+                        : Randomly.fromOptions("InnoDB", "MyISAM", "MEMORY", "HEAP", "CSV", "ARCHIVE");
                 this.engine = MySQLEngine.get(fromOptions);
                 sb.append("ENGINE = ");
                 sb.append(fromOptions);
@@ -346,26 +350,41 @@ public class MySQLTableGenerator {
             break;
         case FLOAT:
             sb.append("FLOAT");
-            optionallyAddPrecisionAndScale(sb);
+            optionallyAddFloatingPointPrecisionAndScale(sb);
             break;
         case DOUBLE:
             sb.append(Randomly.fromOptions("DOUBLE", "FLOAT"));
-            optionallyAddPrecisionAndScale(sb);
+            optionallyAddFloatingPointPrecisionAndScale(sb);
             break;
         default:
             throw new AssertionError();
         }
         if (randomType.isNumeric()) {
-            if (Randomly.getBoolean() && randomType != MySQLDataType.INT && !MySQLBugs.bug99127) {
+            if (Randomly.getBoolean() && randomType != MySQLDataType.INT) {
                 sb.append(" UNSIGNED");
             }
-            if (!globalState.usesPQS() && Randomly.getBoolean()) {
+            if (Randomly.getBoolean() && !globalState.getDbmsSpecificOptions().getTestOracleFactory().stream()
+                    .anyMatch(o -> o == MySQLOracleFactory.TLP_WHERE || o == MySQLOracleFactory.PQS
+                            || o == MySQLOracleFactory.DQP || o == MySQLOracleFactory.EET
+                            || o == MySQLOracleFactory.EET_DML)) {
                 sb.append(" ZEROFILL");
             }
         }
     }
 
-    public static void optionallyAddPrecisionAndScale(StringBuilder sb) {
+    // FLOAT(M, D)/DOUBLE(M, D) is deprecated and cannot be reproduced as a CAST target, so the EET oracle's type
+    // inference relies on FLOAT/DOUBLE columns being created without (M, D) (see MySQLEETTransformer#inferColumnType);
+    // it is therefore omitted while EET is active. DECIMAL(M, D) has no such restriction: the EET oracle tracks its
+    // (M, D) and reproduces it via CAST(... AS DECIMAL(M, D)), so it keeps using optionallyAddPrecisionAndScale.
+    private void optionallyAddFloatingPointPrecisionAndScale(StringBuilder sb) {
+        // Both EET oracles rely on the same type inference (MySQLEETTransformer), so both omit FLOAT(M, D)/DOUBLE(M,
+        // D).
+        if (!globalState.usesEET()) {
+            optionallyAddPrecisionAndScale(sb);
+        }
+    }
+
+    private void optionallyAddPrecisionAndScale(StringBuilder sb) {
         if (Randomly.getBoolean() && !MySQLBugs.bug99183) {
             sb.append("(");
             // The maximum number of digits (M) for DECIMAL is 65

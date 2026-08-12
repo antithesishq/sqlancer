@@ -1,7 +1,6 @@
 package sqlancer.common.oracle;
 
 import java.sql.SQLException;
-import java.util.Objects;
 import java.util.function.Function;
 
 import sqlancer.IgnoreMeException;
@@ -31,19 +30,68 @@ public class NoRECOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, 
     private Reproducer<G> reproducer;
     private String lastQueryString;
 
-    private static class NoRECReproducer<G extends SQLGlobalState<?, ?>> implements Reproducer<G> {
+    private static class NoRECReproducer<G extends SQLGlobalState<?, ?>>
+            extends AbstractComparisonReproducer<G, Integer> {
         private final Function<G, Integer> optimizedQuery;
         private final Function<G, Integer> unoptimizedQuery;
+        private final String optimizedQueryString;
+        private final String unoptimizedQueryString;
 
-        NoRECReproducer(Function<G, Integer> optimizedQuery, Function<G, Integer> unoptimizedQuery) {
+        NoRECReproducer(Function<G, Integer> optimizedQuery, Function<G, Integer> unoptimizedQuery,
+                String optimizedQueryString, String unoptimizedQueryString) {
             this.optimizedQuery = optimizedQuery;
             this.unoptimizedQuery = unoptimizedQuery;
+            this.optimizedQueryString = optimizedQueryString;
+            this.unoptimizedQueryString = unoptimizedQueryString;
         }
 
         @Override
-        public boolean bugStillTriggers(G globalState) {
-            return !Objects.equals(optimizedQuery.apply(globalState), unoptimizedQuery.apply(globalState));
+        protected Integer evaluateOriginal(G globalState) {
+            return optimizedQuery.apply(globalState);
         }
+
+        @Override
+        protected Integer evaluateTransformed(G globalState) {
+            return unoptimizedQuery.apply(globalState);
+        }
+
+        @Override
+        protected boolean sidesDiffer(Integer optimizedCount, Integer unoptimizedCount, G globalState) {
+            if (optimizedCount == -1 || unoptimizedCount == -1) {
+                return false;
+            }
+            return optimizedCount.intValue() != unoptimizedCount.intValue();
+        }
+
+        @Override
+        protected String mismatchHeaderLine() {
+            return "-- On the database set up by the statements above, the row counts of the following"
+                    + " queries mismatch:";
+        }
+
+        @Override
+        protected void appendQueryLines(StringBuilder sb) {
+            renderQueryLines(sb, optimizedQueryString, unoptimizedQueryString);
+        }
+    }
+
+    // Renders the failing queries as commented lines, shared by the mismatch and the unexpected-error reproducers.
+    private static void renderQueryLines(StringBuilder sb, String optimizedQueryString, String unoptimizedQueryString) {
+        sb.append("-- optimized: ").append(optimizedQueryString).append(';').append(System.lineSeparator());
+        sb.append("-- unoptimized: ").append(unoptimizedQueryString).append(';').append(System.lineSeparator());
+    }
+
+    // Builds the reproducer for an unexpected DBMS error, which re-runs both queries and checks the same error fires.
+    private static <G extends SQLGlobalState<?, ?>> UnexpectedErrorReproducer<G> errorReproducer(
+            Function<G, Integer> optimizedQuery, Function<G, Integer> unoptimizedQuery, String optimizedQueryString,
+            String unoptimizedQueryString, String expectedErrorMessage) {
+        UnexpectedErrorReproducer.Execution<G> execution = globalState -> {
+            optimizedQuery.apply(globalState);
+            unoptimizedQuery.apply(globalState);
+        };
+        StringBuilder sb = new StringBuilder();
+        renderQueryLines(sb, optimizedQueryString, unoptimizedQueryString);
+        return new UnexpectedErrorReproducer<>(execution, expectedErrorMessage, sb.toString());
     }
 
     public NoRECOracle(G state, NoRECGenerator<Z, J, E, T, C> gen, ExpectedErrors expectedErrors) {
@@ -82,21 +130,28 @@ public class NoRECOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, 
             state.getLogger().writeCurrent(unoptimizedQueryString);
         }
 
-        int optimizedCount = shouldUseAggregate ? extractCounts(optimizedQueryString, errors, state)
-                : countRows(optimizedQueryString, errors, state);
-        int unoptimizedCount = extractCounts(unoptimizedQueryString, errors, state);
+        Function<G, Integer> optimizedQuery = state -> shouldUseAggregate
+                ? extractCounts(optimizedQueryString, errors, state) : countRows(optimizedQueryString, errors, state);
+        Function<G, Integer> unoptimizedQuery = state -> extractCounts(unoptimizedQueryString, errors, state);
+
+        int optimizedCount;
+        int unoptimizedCount;
+        try {
+            optimizedCount = optimizedQuery.apply(state);
+            unoptimizedCount = unoptimizedQuery.apply(state);
+        } catch (AssertionError unexpectedError) {
+            reproducer = errorReproducer(optimizedQuery, unoptimizedQuery, optimizedQueryString, unoptimizedQueryString,
+                    TestOracleUtils.getUnexpectedErrorMessage(unexpectedError));
+            throw unexpectedError;
+        }
 
         if (optimizedCount == -1 || unoptimizedCount == -1) {
             throw new IgnoreMeException();
         }
 
         if (unoptimizedCount != optimizedCount) {
-            Function<G, Integer> optimizedQuery = state -> shouldUseAggregate
-                    ? extractCounts(optimizedQueryString, errors, state)
-                    : countRows(optimizedQueryString, errors, state);
-
-            Function<G, Integer> unoptimizedQuery = state -> extractCounts(unoptimizedQueryString, errors, state);
-            reproducer = new NoRECReproducer<>(optimizedQuery, unoptimizedQuery);
+            reproducer = new NoRECReproducer<>(optimizedQuery, unoptimizedQuery, optimizedQueryString,
+                    unoptimizedQueryString);
 
             String queryFormatString = "-- %s;\n-- count: %d";
             String firstQueryStringWithCount = String.format(queryFormatString, optimizedQueryString, optimizedCount);

@@ -33,6 +33,7 @@ public final class MySQLErrors {
         }
 
         errors.add(Pattern.compile("Unknown column '.*' in 'order clause'"));
+        errors.add(Pattern.compile("Unknown column '.*' in 'EXISTS subquery'"));
 
         return errors;
     }
@@ -48,17 +49,37 @@ public final class MySQLErrors {
         errors.add("doesn't have a default value");
         errors.add("Data truncation");
         errors.add("Incorrect integer value");
+        errors.add("Incorrect FLOAT value");
+        errors.add("Incorrect DOUBLE value");
         errors.add("Duplicate entry");
         errors.add("Data truncated for column");
         errors.add("Data truncated for functional index");
         errors.add("cannot be null");
         errors.add("Incorrect decimal value");
+        errors.add("The value specified for generated column");
 
         return errors;
     }
 
     public static void addInsertUpdateErrors(ExpectedErrors errors) {
         errors.addAll(getInsertUpdateErrors());
+    }
+
+    public static List<String> getDMLErrors() {
+        ArrayList<String> errors = new ArrayList<>(getInsertUpdateErrors());
+
+        // WHERE-clause type coercion (e.g. string -> number) is only a warning in SELECT but a hard error in
+        // DELETE/UPDATE under strict sql_mode (MySQL 1292). A semantics-preserving transform may benignly change
+        // whether it fires, so it is tolerated rather than flagged.
+        errors.add("Truncated incorrect");
+        // Foreign key constraint failure when deleting/updating a referenced row.
+        errors.add("a foreign key constraint fails");
+
+        return errors;
+    }
+
+    public static void addDMLErrors(ExpectedErrors errors) {
+        errors.addAll(getDMLErrors());
     }
 
 }

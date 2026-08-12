@@ -5,11 +5,14 @@ import java.util.Optional;
 
 import sqlancer.OracleFactory;
 import sqlancer.common.oracle.CERTOracle;
+import sqlancer.common.oracle.EETDMLOracle;
+import sqlancer.common.oracle.EETOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.SQLancerResultSet;
 import sqlancer.mysql.gen.MySQLExpressionGenerator;
+import sqlancer.mysql.oracle.MySQLDQEOracle;
 import sqlancer.mysql.oracle.MySQLDQPOracle;
 import sqlancer.mysql.oracle.MySQLFuzzer;
 import sqlancer.mysql.oracle.MySQLPivotedQuerySynthesisOracle;
@@ -74,6 +77,34 @@ public enum MySQLOracleFactory implements OracleFactory<MySQLGlobalState> {
         @Override
         public TestOracle<MySQLGlobalState> create(MySQLGlobalState globalState) throws SQLException {
             return new MySQLDQPOracle(globalState);
+        }
+    },
+    DQE {
+        @Override
+        public TestOracle<MySQLGlobalState> create(MySQLGlobalState globalState) throws SQLException {
+            return new MySQLDQEOracle(globalState);
+        }
+    },
+    EET {
+        @Override
+        public TestOracle<MySQLGlobalState> create(MySQLGlobalState globalState) throws SQLException {
+            MySQLExpressionGenerator gen = new MySQLExpressionGenerator(globalState);
+            ExpectedErrors expectedErrors = ExpectedErrors.newErrors().with(MySQLErrors.getExpressionErrors())
+                    .withRegex(MySQLErrors.getExpressionRegexErrors()).build();
+            return new EETOracle<>(globalState, gen, expectedErrors);
+        }
+    },
+    EET_DML {
+        @Override
+        public TestOracle<MySQLGlobalState> create(MySQLGlobalState globalState) throws SQLException {
+            MySQLExpressionGenerator gen = new MySQLExpressionGenerator(globalState);
+            ExpectedErrors expectedErrors = ExpectedErrors.newErrors().with(MySQLErrors.getExpressionErrors())
+                    .withRegex(MySQLErrors.getExpressionRegexErrors())
+                    // The DML statements and the row-identity setup (adding/stamping the auxiliary column) touch rows,
+                    // so they can raise the full range of DML errors — e.g. functional-index maintenance truncation —
+                    // beyond the SELECT-based expression errors.
+                    .with(MySQLErrors.getDMLErrors()).build();
+            return new EETDMLOracle<>(globalState, gen, expectedErrors);
         }
     };
 }

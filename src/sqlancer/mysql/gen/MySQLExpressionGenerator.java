@@ -1,7 +1,9 @@
 package sqlancer.mysql.gen;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -9,14 +11,18 @@ import java.util.stream.IntStream;
 import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.common.gen.CERTGenerator;
+import sqlancer.common.gen.EETDMLGenerator;
+import sqlancer.common.gen.EETGenerator;
 import sqlancer.common.gen.TLPWhereGenerator;
 import sqlancer.common.gen.UntypedExpressionGenerator;
+import sqlancer.common.oracle.EETTransformer;
 import sqlancer.common.schema.AbstractTables;
 import sqlancer.mysql.MySQLBugs;
 import sqlancer.mysql.MySQLGlobalState;
 import sqlancer.mysql.MySQLSchema.MySQLColumn;
 import sqlancer.mysql.MySQLSchema.MySQLRowValue;
 import sqlancer.mysql.MySQLSchema.MySQLTable;
+import sqlancer.mysql.MySQLVisitor;
 import sqlancer.mysql.ast.MySQLAggregate;
 import sqlancer.mysql.ast.MySQLAggregate.MySQLAggregateFunction;
 import sqlancer.mysql.ast.MySQLBetweenOperation;
@@ -45,10 +51,13 @@ import sqlancer.mysql.ast.MySQLTableReference;
 import sqlancer.mysql.ast.MySQLUnaryPostfixOperation;
 import sqlancer.mysql.ast.MySQLUnaryPrefixOperation;
 import sqlancer.mysql.ast.MySQLUnaryPrefixOperation.MySQLUnaryPrefixOperator;
+import sqlancer.mysql.oracle.MySQLEETTransformer;
 
 public class MySQLExpressionGenerator extends UntypedExpressionGenerator<MySQLExpression, MySQLColumn>
         implements TLPWhereGenerator<MySQLSelect, MySQLJoin, MySQLExpression, MySQLTable, MySQLColumn>,
-        CERTGenerator<MySQLSelect, MySQLJoin, MySQLExpression, MySQLTable, MySQLColumn> {
+        CERTGenerator<MySQLSelect, MySQLJoin, MySQLExpression, MySQLTable, MySQLColumn>,
+        EETGenerator<MySQLSelect, MySQLJoin, MySQLExpression, MySQLTable, MySQLColumn>,
+        EETDMLGenerator<MySQLExpression, MySQLTable, MySQLColumn> {
 
     private final MySQLGlobalState state;
     private MySQLRowValue rowVal;
@@ -112,7 +121,7 @@ public class MySQLExpressionGenerator extends UntypedExpressionGenerator<MySQLEx
         case EXISTS:
             return getExists();
         case BETWEEN_OPERATOR:
-            if (MySQLBugs.bug99181) {
+            if (MySQLBugs.bug99182) {
                 // TODO: there are a number of bugs that are triggered by the BETWEEN operator
                 throw new IgnoreMeException();
             }
@@ -218,6 +227,22 @@ public class MySQLExpressionGenerator extends UntypedExpressionGenerator<MySQLEx
         return newOrderBys;
     }
 
+    public MySQLAggregate generateAggregate() {
+        MySQLAggregateFunction func = Randomly.fromOptions(MySQLAggregateFunction.values());
+
+        if (func.isVariadic()) {
+            int nrExprs = Randomly.smallNumber() + 1;
+            List<MySQLExpression> exprs = IntStream.range(0, nrExprs).mapToObj(index -> generateExpression())
+                    .collect(Collectors.toList());
+
+            return new MySQLAggregate(exprs, func);
+        } else {
+            return new MySQLAggregate(List.of(generateExpression()), func);
+        }
+    }
+
+    // --- Shared oracle infrastructure (TLPWhere / CERT / EET) ---
+
     @Override
     public MySQLExpressionGenerator setTablesAndColumns(AbstractTables<MySQLTable, MySQLColumn> tables) {
         this.columns = tables.getColumns();
@@ -229,6 +254,18 @@ public class MySQLExpressionGenerator extends UntypedExpressionGenerator<MySQLEx
     @Override
     public MySQLExpression generateBooleanExpression() {
         return generateExpression();
+    }
+
+    @Override
+    public List<Map.Entry<MySQLColumn, MySQLExpression>> generateSetAssignments() {
+        List<Map.Entry<MySQLColumn, MySQLExpression>> assignments = new ArrayList<>();
+        for (MySQLColumn column : Randomly.nonEmptySubset(columns)) {
+            // As with the normal UPDATE workload, the value is an arbitrary expression (not type-matched to the
+            // column);
+            // any resulting type/range error is on the oracle's expected-error allow-list.
+            assignments.add(new AbstractMap.SimpleEntry<>(column, generateExpression()));
+        }
+        return assignments;
     }
 
     @Override
@@ -251,23 +288,13 @@ public class MySQLExpressionGenerator extends UntypedExpressionGenerator<MySQLEx
         return columns.stream().map(c -> new MySQLColumnReference(c, null)).collect(Collectors.toList());
     }
 
+    // --- CERT oracle ---
+
     @Override
     public String generateExplainQuery(MySQLSelect select) {
-        return "EXPLAIN " + select.asString();
-    }
-
-    public MySQLAggregate generateAggregate() {
-        MySQLAggregateFunction func = Randomly.fromOptions(MySQLAggregateFunction.values());
-
-        if (func.isVariadic()) {
-            int nrExprs = Randomly.smallNumber() + 1;
-            List<MySQLExpression> exprs = IntStream.range(0, nrExprs).mapToObj(index -> generateExpression())
-                    .collect(Collectors.toList());
-
-            return new MySQLAggregate(exprs, func);
-        } else {
-            return new MySQLAggregate(List.of(generateExpression()), func);
-        }
+        return "EXPLAIN FORMAT=TRADITIONAL " + select.asString(); // as of MySQL 9.5.0, default EXPLAIN format changed
+                                                                  // from TRADITIONAL to TREE, hence TRADITIONAL must
+                                                                  // now be specified
     }
 
     @Override
@@ -352,5 +379,33 @@ public class MySQLExpressionGenerator extends UntypedExpressionGenerator<MySQLEx
             select.setWhereClause(newWhere);
             return true;
         }
+    }
+
+    // --- EET oracle (including DML) ---
+
+    @Override
+    public EETTransformer<MySQLExpression, ?> createTransformer() {
+        return new MySQLEETTransformer(this);
+    }
+
+    // --- EET DML only ---
+
+    @Override
+    public String asString(MySQLExpression expr) {
+        return MySQLVisitor.asString(expr);
+    }
+
+    @Override
+    public String stampRowIdsStatement(MySQLTable table) {
+        // MySQL's UUID() gives each existing row a distinct value in a single statement. Stamping happens once, before
+        // both rolled-back statement runs, so both observe identical identifiers; the standard-SQL statements (add/drop
+        // column, delete/update, snapshot, transaction control) use EETDMLGenerator's defaults.
+        return String.format("UPDATE %s SET %s = UUID()", table.getName(), ROW_ID_COLUMN);
+    }
+
+    @Override
+    public String rowIdColumnType() {
+        // Holds a 36-character UUID string produced by stampRowIdsStatement.
+        return "VARCHAR(36)";
     }
 }
