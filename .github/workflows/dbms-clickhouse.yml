@@ -21,11 +21,9 @@ jobs:
     name: DBMS Tests (ClickHouse)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
       - name: Set up JDK 11
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
@@ -36,9 +34,9 @@ jobs:
         run: |
           docker pull clickhouse/clickhouse-server:24.3.1.2672
           docker run --ulimit nofile=262144:262144 --name clickhouse-server -p8123:8123 -d clickhouse/clickhouse-server:24.3.1.2672
-          sleep 5
+          until curl -sf http://127.0.0.1:8123/ping 2>/dev/null; do sleep 1; done
       - name: Run Tests
-        run: CLICKHOUSE_AVAILABLE=true mvn -Dtest=ClickHouseBinaryComparisonOperationTest,TestClickHouse,ClickHouseOperatorsVisitorTest,ClickHouseToStringVisitorTest test
+        run: CLICKHOUSE_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=ClickHouseBinaryComparisonOperationTest,TestClickHouse,ClickHouseOperatorsVisitorTest,ClickHouseToStringVisitorTest test
       - name: Show fatal errors
         run: docker exec clickhouse-server grep Fatal /var/log/clickhouse-server/clickhouse-server.log || echo No Fatal Errors found
       - name: Teardown ClickHouse server

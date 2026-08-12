@@ -21,18 +21,16 @@ jobs:
     name: DBMS Tests (PostgreSQL)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
       - name: Set up PostgreSQL
         uses: harmon758/postgresql-action@v1.0.0
         with:
-          postgresql version: '13'
+          postgresql version: '18'
           postgresql user: 'sqlancer'
           postgresql password: 'sqlancer'
           postgresql db: 'test'
       - name: Set up JDK 11
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
@@ -41,7 +39,7 @@ jobs:
         run: mvn -B package -DskipTests=true
       - name: Run Tests
         run: |
-          POSTGRES_AVAILABLE=true mvn -Dtest=TestPostgresPQS test
-          POSTGRES_AVAILABLE=true mvn -Dtest=TestPostgresTLP test
-          POSTGRES_AVAILABLE=true mvn -Dtest=TestPostgresNoREC test
-          POSTGRES_AVAILABLE=true mvn -Dtest=TestPostgresCERT test
+          POSTGRES_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestPostgresPQS test
+          POSTGRES_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestPostgresTLP test
+          POSTGRES_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestPostgresNoREC test
+          POSTGRES_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestPostgresCERT test

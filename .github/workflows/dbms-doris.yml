@@ -21,11 +21,9 @@ jobs:
     name: DBMS Tests (Apache Doris)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
       - name: Set up JDK 11
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
@@ -34,10 +32,15 @@ jobs:
         run: |
           sudo apt update
           sudo apt install mysql-client --assume-yes
+      - name: Cache Apache Doris tarball
+        uses: actions/cache@v4
+        with:
+          path: apache-doris-2.1.4-bin-x64.tar.gz
+          key: apache-doris-2.1.4-bin-x64-tarball
       - name: Set up Apache Doris
         run: |
           sudo sysctl -w vm.max_map_count=2000000
-          wget -q https://apache-doris-releases.oss-accelerate.aliyuncs.com/apache-doris-2.1.4-bin-x64.tar.gz
+          [ -f apache-doris-2.1.4-bin-x64.tar.gz ] || wget -q https://apache-doris-releases.oss-accelerate.aliyuncs.com/apache-doris-2.1.4-bin-x64.tar.gz
           tar zxf apache-doris-2.1.4-bin-x64.tar.gz
           mv apache-doris-2.1.4-bin-x64 apache-doris
           sudo swapoff -a
@@ -45,7 +48,7 @@ jobs:
           ./bin/start_fe.sh --daemon
           cd ../be
           ./bin/start_be.sh --daemon
-          sleep 30
+          until mysql -u root -h 127.0.0.1 --port 9030 --connect-timeout=3 -e "SELECT 1" 2>/dev/null; do sleep 3; done
           IP=$(hostname -I | awk '{print $1}')
           mysql -u root -h 127.0.0.1 --port 9030 -e "ALTER SYSTEM ADD BACKEND '${IP}:9050';"
           mysql -u root -h 127.0.0.1 --port 9030 -e "CREATE USER 'sqlancer' IDENTIFIED BY 'sqlancer'; GRANT ALL ON *.* TO sqlancer;"
@@ -53,6 +56,6 @@ jobs:
         run: mvn -B package -DskipTests=true
       - name: Run Tests
         run: |
-          DORIS_AVAILABLE=true mvn -Dtest=TestDorisNoREC test
-          DORIS_AVAILABLE=true mvn -Dtest=TestDorisPQS test
-          DORIS_AVAILABLE=true mvn -Dtest=TestDorisTLP test
+          DORIS_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestDorisNoREC test
+          DORIS_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestDorisPQS test
+          DORIS_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestDorisTLP test
